@@ -1,3 +1,4 @@
+
 print('IronBrew 2:tm: Benchmark-y Meme')
 local Iterations = 100000
 print('Iterations: ' .. tostring(Iterations))
