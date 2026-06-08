@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using IronBrew2.Bytecode_Library.IR;
+using IronBrew2.Cryptography;
 using IronBrew2.Obfuscator;
 
 namespace IronBrew2.Bytecode_Library.Bytecode
@@ -22,13 +23,17 @@ namespace IronBrew2.Bytecode_Library.Bytecode
 		
 		public byte[] SerializeLChunk(Chunk chunk, bool factorXor = true)
 		{
+			// When AES mode is on we write plaintext bytes; the caller
+			// (Generator) encrypts the final blob with AES-256-CBC.
+			bool useXor = factorXor && !_settings.UseAesEncryption;
+
 			List<byte> bytes = new List<byte>();
 
 			void WriteByte(byte b)
 			{
-				if (factorXor)
-					b ^= (byte) (_context.PrimaryXorKey);
-				
+				if (useXor)
+					b ^= (byte)(_context.PrimaryXorKey);
+
 				bytes.Add(b);
 			}
 
@@ -38,12 +43,12 @@ namespace IronBrew2.Bytecode_Library.Bytecode
 					b = b.Reverse().ToArray();
 
 				bytes.AddRange(b.Select(i =>
-				                        {
-					                        if (factorXor)
-						                        i ^= (byte) (_context.PrimaryXorKey);
-					                        
-					                        return i;
-				                        }));
+				{
+					if (useXor)
+						i ^= (byte)(_context.PrimaryXorKey);
+
+					return i;
+				}));
 			}
 			
 			void WriteInt32(int i) =>

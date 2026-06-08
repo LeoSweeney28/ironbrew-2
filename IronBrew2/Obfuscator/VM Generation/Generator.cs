@@ -4,9 +4,11 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Security.Cryptography;
 using System.Text;
 using IronBrew2.Bytecode_Library.Bytecode;
 using IronBrew2.Bytecode_Library.IR;
+using IronBrew2.Cryptography;
 using IronBrew2.Extensions;
 using IronBrew2.Obfuscator.Opcodes;
 
@@ -409,7 +411,7 @@ namespace IronBrew2.Obfuscator.VM_Generation
 			string vm = "";
 
 			byte[] bs = new Serializer(_context, settings).SerializeLChunk(_context.HeadChunk);
-			
+
 			vm += @"
 local Byte         = string.byte;
 local Char         = string.char;
@@ -424,7 +426,44 @@ local Select       = select;
 local Unpack = unpack or table.unpack;
 local ToNumber = tonumber;";
 
-			if (settings.BytecodeCompress)
+			if (settings.UseAesEncryption)
+			{
+				// Derive a 16-byte session key from the 32-byte AES key
+				// by taking the first 16 bytes.
+				byte[] sessionKey = new byte[16];
+				Buffer.BlockCopy(_context.AesEncryptionKey, 0, sessionKey, 0, 16);
+
+				// Encrypt the plaintext blob with AES-128-CBC (random IV prepended)
+				byte[] encrypted = AesEncryption.Encrypt(bs, sessionKey);
+
+				// Separate prepended IV from ciphertext
+				byte[] iv   = new byte[16];
+				byte[] ct   = new byte[encrypted.Length - 16];
+				Buffer.BlockCopy(encrypted, 0,  iv, 0, 16);
+				Buffer.BlockCopy(encrypted, 16, ct, 0, ct.Length);
+
+				string keyHex = BitConverter.ToString(sessionKey).Replace("-", "").ToLower();
+				string ivHex  = BitConverter.ToString(iv).Replace("-", "").ToLower();
+				string ctHex  = BitConverter.ToString(ct).Replace("-", "").ToLower();
+
+				// Compute Adler-32 of the *plaintext* blob as the integrity check
+				uint s1 = 1, s2 = 0;
+				uint hmacSeed = sessionKey[0]; // first byte of session key as seed
+				foreach (byte b in bs)
+				{
+					s1 = (s1 + b + hmacSeed) % 65521;
+					s2 = (s2 + s1) % 65521;
+				}
+				string checksum = ((s2 << 16) | s1).ToString("x8");
+
+				vm += VMStrings.AesDecryptorPreamble
+					.Replace("ENCRYPTED_BLOB",  $"\"{ctHex}\"")
+					.Replace("AES_KEY_HEX",      keyHex)
+					.Replace("AES_IV_HEX",       ivHex)
+					.Replace("HMAC_CHECKSUM",    checksum)
+					.Replace("HMAC_SEED",        hmacSeed.ToString());
+			}
+			else if (settings.BytecodeCompress)
 			{
 				vm += "local function decompress(b)local c,d,e=\"\",\"\",{}local f=256;local g={}for h=0,f-1 do g[h]=Char(h)end;local i=1;local function k()local l=ToNumber(Sub(b, i,i),36)i=i+1;local m=ToNumber(Sub(b, i,i+l-1),36)i=i+l;return m end;c=Char(k())e[1]=c;while i<#b do local n=k()if g[n]then d=g[n]else d=c..Sub(c, 1,1)end;g[f]=c..Sub(d, 1,1)e[#e+1],c,f=d,d,f+1 end;return table.concat(e)end;";
 				vm += "local ByteString=decompress('" + CompressedToString(Compress(bs)) + "');\n";

@@ -5,7 +5,6 @@ namespace IronBrew2.Cryptography
 {
 	public static class AesEncryption
 	{
-		private const int KeySize = 256;
 		private const int BlockSize = 128;
 
 		/// <summary>
@@ -17,12 +16,12 @@ namespace IronBrew2.Cryptography
 				throw new ArgumentNullException(nameof(plaintext));
 			if (key == null)
 				throw new ArgumentNullException(nameof(key));
-			if (key.Length != 32)
-				throw new ArgumentException("Key must be 256 bits (32 bytes)", nameof(key));
+			if (key.Length != 16 && key.Length != 24 && key.Length != 32)
+				throw new ArgumentException("Key must be 128, 192, or 256 bits (16, 24, or 32 bytes)", nameof(key));
 
 			using (var aes = new AesCryptoServiceProvider())
 			{
-				aes.KeySize = KeySize;
+				aes.KeySize = key.Length * 8;
 				aes.BlockSize = BlockSize;
 				aes.Mode = CipherMode.CBC;
 				aes.Padding = PaddingMode.PKCS7;
@@ -52,14 +51,14 @@ namespace IronBrew2.Cryptography
 				throw new ArgumentNullException(nameof(ciphertext));
 			if (key == null)
 				throw new ArgumentNullException(nameof(key));
-			if (key.Length != 32)
-				throw new ArgumentException("Key must be 256 bits (32 bytes)", nameof(key));
+			if (key.Length != 16 && key.Length != 24 && key.Length != 32)
+				throw new ArgumentException("Key must be 128, 192, or 256 bits (16, 24, or 32 bytes)", nameof(key));
 			if (ciphertext.Length < 16)
 				throw new ArgumentException("Ciphertext too short (must contain IV)", nameof(ciphertext));
 
 			using (var aes = new AesCryptoServiceProvider())
 			{
-				aes.KeySize = KeySize;
+				aes.KeySize = key.Length * 8;
 				aes.BlockSize = BlockSize;
 				aes.Mode = CipherMode.CBC;
 				aes.Padding = PaddingMode.PKCS7;

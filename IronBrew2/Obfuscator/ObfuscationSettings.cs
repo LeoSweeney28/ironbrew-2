@@ -16,6 +16,9 @@ namespace IronBrew2.Obfuscator
 		public int MaxMiniSuperOperators { get; set; }
 		public int MaxMegaSuperOperators { get; set; }
 		public int MaxMutations { get; set; }
+		// When true: bytecode is AES-256-CBC encrypted instead of XOR;
+		// an HMAC-SHA256 checksum is embedded and verified at VM startup.
+		public bool UseAesEncryption { get; set; }
 
 		public ObfuscationSettings()
 		{
@@ -30,6 +33,7 @@ namespace IronBrew2.Obfuscator
 			MaxMegaSuperOperators = 120;
 			MaxMiniSuperOperators = 120;
 			MaxMutations = 200;
+			UseAesEncryption = true;
 		}
 
 		public void Validate()
