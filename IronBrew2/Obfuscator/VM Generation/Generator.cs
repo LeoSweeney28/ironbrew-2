@@ -547,11 +547,11 @@ local ToNumber = tonumber;";
 			string GetStr(List<int> opcodes)
 			{
 				string str = "";
-				
+
 				if (opcodes.Count == 1)
 					str += $"{virtuals[opcodes[0]].GetObfuscated(_context)}";
 
-				else if (opcodes.Count == 2) 
+				else if (opcodes.Count == 2)
 				{
 					if (r.Next(2) == 0)
 					{
@@ -571,12 +571,13 @@ local ToNumber = tonumber;";
 				else
 				{
 					List<int> ordered = opcodes.OrderBy(o => o).ToList();
-					var sorted = new[] { ordered.Take(ordered.Count / 2).ToList(), ordered.Skip(ordered.Count / 2).ToList() };
-					
+					var sorted = new[] { ordered.Take((ordered.Count + 1) / 2).ToList(), ordered.Skip((ordered.Count + 1) / 2).ToList() };
+
 					str += "if Enum <= " + sorted[0].Last() + " then ";
 					str += GetStr(sorted[0]);
 					str += " else";
 					str += GetStr(sorted[1]);
+					str += " end";
 				}
 
 				return str;
