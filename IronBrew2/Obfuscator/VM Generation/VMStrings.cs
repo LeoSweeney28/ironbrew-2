@@ -183,7 +183,8 @@ namespace IronBrew2.Obfuscator.VM_Generation
 			while true do
 				Inst		= Instr[InstrPoint];
 				Enum		= Inst[OP_ENUM];
-				A, B, C = Inst[OP_A], Inst[OP_B], Inst[OP_C];;
+				A, B, C = Inst[OP_A], Inst[OP_B], Inst[OP_C];"
+;
 
 		public static string VMP3 = @"
 			InstrPoint	= InstrPoint + 1;
@@ -192,6 +193,7 @@ namespace IronBrew2.Obfuscator.VM_Generation
 end;
 return Wrap(Deserialize(), {}, GetFEnv())();
 ";
+
 		public static string VMP2_LI = @"
 	local PCall = pcall
 	local function Wrap(Chunk, Upvalues, Env)
@@ -230,10 +232,13 @@ return Wrap(Deserialize(), {}, GetFEnv())();
 
 				local Inst;
 				local Enum;
+				local A, B, C;
 
 				while true do
 					Inst		= Instr[InstrPoint];
-					Enum		= Inst[OP_ENUM];";
+					Enum		= Inst[OP_ENUM];
+					A, B, C = Inst[OP_A], Inst[OP_B], Inst[OP_C];"
+;
 
 		public static string VMP3_LI = @"
 				InstrPoint	= InstrPoint + 1;
