@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using IronBrew2.Cryptography;
+using IronBrew2.Utilities;
 
 namespace IronBrew2.Obfuscator.Encryption
 {
@@ -11,27 +13,25 @@ namespace IronBrew2.Obfuscator.Encryption
 	{
 		public int[] Table;
 		public int SLen = 0;
-		
+
 		public string Name;
-		
+
 		public string Encrypt(byte[] bytes)
 		{
 			List<byte> encrypted = new List<byte>();
 
 			int L = Table.Length;
-			
+
 			for (var index = 0; index < bytes.Length; index++)
 				encrypted.Add((byte) (bytes[index] ^ Table[index % L]));
-			
+
 			return $"((function(b)IB_INLINING_START(true);local function xor(b,c)IB_INLINING_START(true);local d,e=1,0;while b>0 and c>0 do local f,g=b%2,c%2;if f~=g then e=e+d end;b,c,d=(b-f)/2,(c-g)/2,d*2 end;if b<c then b=c end;while b>0 do local f=b%2;if f>0 then e=e+d end;b,d=(b-f)/2,d*2 end;return e end;local c=\"\"local e=string.sub;local h=string.char;local t = {{}} for j=0, 255 do local x=h(j);t[j]=x;t[x]=j;end;local f=\"{string.Join("", Table.Select(t => "\\" + t.ToString()))}\" for g=1,#b do local x=(g-1) % {Table.Length}+1 c=c..t[xor(t[e(b,g,g)],t[e(f, x, x)])];end;return c;end)(\"{string.Join("", encrypted.Select(t => "\\" + t.ToString()))}\"))";
 		}
 
 		public Decryptor(string name, int maxLen)
 		{
-			Random r = new Random();
-
 			Name = name;
-			Table = Enumerable.Repeat(0, maxLen).Select(i => r.Next(0, 256)).ToArray();
+			Table = SecureRandom.NextInts(maxLen, 0, 256);
 		}
 	}
 	
@@ -39,7 +39,7 @@ namespace IronBrew2.Obfuscator.Encryption
 	{
 		private string _src;
 		private ObfuscationSettings _settings;
-		private Encoding _fuckingLua = Encoding.GetEncoding(28591);
+		private Encoding LuaBytecodeEncoding => EncodingConstants.LuaBytecodeEncoding;
 
 		public Decryptor GenerateGenericDecryptor(MatchCollection matches)
 		{
@@ -156,7 +156,7 @@ namespace IronBrew2.Obfuscator.Encryption
 					if (captured.StartsWith("[STR_ENCRYPT]"))
 						captured = captured.Substring(13);
 					
-					string nStr = before + dec.Encrypt(m.Groups[2].Value != "" ? UnescapeLuaString(captured) : _fuckingLua.GetBytes(captured));
+					string nStr = before + dec.Encrypt(m.Groups[2].Value != "" ? UnescapeLuaString(captured) : LuaBytecodeEncoding.GetBytes(captured));
 					nStr += after;
 				
 					indDiff += nStr.Length - _src.Length;
@@ -187,7 +187,7 @@ namespace IronBrew2.Obfuscator.Encryption
 
 					string nStr = before + dec.Encrypt(m.Groups[2].Value != ""
 						              ? UnescapeLuaString(captured)
-						              : _fuckingLua.GetBytes(captured));
+						              : LuaBytecodeEncoding.GetBytes(captured));
 					nStr += after;
 
 					indDiff += nStr.Length - _src.Length;
@@ -229,7 +229,7 @@ namespace IronBrew2.Obfuscator.Encryption
 
 					string nStr = before + dec.Encrypt(m.Groups[2].Value != ""
 						              ? UnescapeLuaString(captured)
-						              : _fuckingLua.GetBytes(captured));
+						              : LuaBytecodeEncoding.GetBytes(captured));
 
 					nStr += after;
 

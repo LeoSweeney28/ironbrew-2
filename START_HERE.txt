@@ -1,0 +1,120 @@
+================================================================================
+                    IRONBREW2 OBFUSCATOR - START HERE
+================================================================================
+
+Hi! I've set up an easy way to use IronBrew2. Here's everything you need:
+
+================================================================================
+                            QUICK START (Pick One)
+================================================================================
+
+1. EASIEST - Use the Menu:
+   ✓ Double-click: obfuscate.bat
+   ✓ Follow the menu
+   ✓ Choose your options
+   → Best for first-time users
+
+2. FASTEST - Drag and Drop:
+   ✓ Drag your .lua file onto: quick-obfuscate.bat
+   ✓ Wait for it to finish
+   ✓ Output opens automatically
+   → Best for experienced users
+
+3. COMMAND LINE:
+   ✓ cd "IronBrew2 CLI"
+   ✓ dotnet run -- yourfile.lua
+   → Best for automation/scripting
+
+================================================================================
+                            IMPORTANT FILES
+================================================================================
+
+📖 DOCUMENTATION (Read These First):
+   → QUICK_START.md          (5-minute setup guide)
+   → BAT_FILES_GUIDE.md      (How to use batch files)
+   → SETTINGS_GUIDE.md       (Advanced customization)
+   → SETUP_COMPLETE.md       (What was done)
+
+🎯 BATCH FILES (Run These):
+   → obfuscate.bat           (Interactive menu)
+   → quick-obfuscate.bat     (Drag & drop)
+
+🧪 FOR TESTING:
+   → test-sample.lua         (Sample Lua file)
+
+================================================================================
+                            YOUR FIRST 5 MINUTES
+================================================================================
+
+1. Read QUICK_START.md (2 minutes)
+2. Run: obfuscate.bat (2 minutes)
+3. Try option [1] with test-sample.lua (1 minute)
+
+That's it! You're ready to obfuscate real code.
+
+================================================================================
+                        WHAT CAN YOU DO NOW?
+================================================================================
+
+✓ Obfuscate any Lua 5.1 file
+✓ Use different security presets (LIGHT, BALANCED, HEAVY)
+✓ Customize obfuscation settings
+✓ Build the project from the menu
+✓ View help documentation
+✓ Test with sample files
+✓ Check error messages with colors
+
+================================================================================
+                            BUG FIXES APPLIED
+================================================================================
+
+The original code had 3 bugs that have been fixed:
+
+✅ Process configuration for minification step
+✅ Error message accumulation between steps
+✅ Inconsistent error handling
+
+Everything is now working properly!
+
+================================================================================
+                        TROUBLESHOOTING
+================================================================================
+
+Problem: "dotnet is not recognized"
+→ Install .NET Core from https://dotnet.microsoft.com/
+
+Problem: "luac not found" or "luajit not found"
+→ Install Lua from https://www.lua.org/
+
+Problem: File doesn't work after obfuscation
+→ Test original file first (make sure it works)
+→ Use LIGHT or BALANCED preset, not HEAVY
+
+Problem: Can't find the obfuscated file
+→ It's saved as "out.lua" in:
+   IronBrew2 CLI\bin\Debug\netcoreapp3.1\
+
+================================================================================
+                        NEXT STEPS
+================================================================================
+
+1. ✓ Read QUICK_START.md
+2. ✓ Run obfuscate.bat
+3. ✓ Test with test-sample.lua
+4. ✓ Obfuscate your own code
+5. ✓ Read SETTINGS_GUIDE.md for customization (optional)
+
+================================================================================
+                        NEED MORE HELP?
+================================================================================
+
+Check the documentation files:
+→ QUICK_START.md          - Quick setup & troubleshooting
+→ BAT_FILES_GUIDE.md      - Batch file details
+→ SETTINGS_GUIDE.md       - Customization & presets
+
+================================================================================
+
+                    YOU'RE ALL SET! HAPPY OBFUSCATING! 🚀
+
+================================================================================

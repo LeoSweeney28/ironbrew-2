@@ -1,37 +1,45 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using IronBrew2.Bytecode_Library.Bytecode;
 using IronBrew2.Bytecode_Library.IR;
+using IronBrew2.Cryptography;
 using IronBrew2.Obfuscator;
 using IronBrew2.Obfuscator.Control_Flow;
 using IronBrew2.Obfuscator.Encryption;
 using IronBrew2.Obfuscator.VM_Generation;
+using IronBrew2.Utilities;
+using IronBrew2.Validation;
 
 namespace IronBrew2
 {
 	public static class IB2
 	{
-		public static Random Random = new Random();
-		private static Encoding _fuckingLua = Encoding.GetEncoding(28591);
+		private static Encoding LuaBytecodeEncoding => EncodingConstants.LuaBytecodeEncoding;
 
-		public static bool Obfuscate(string path, string input, ObfuscationSettings settings, out string error)
+		public static bool Obfuscate(string path, string input, ObfuscationSettings settings, out string error,
+		Action<ObfuscationProgress> onProgress = null, bool validate = true)
 		{
 			try
 			{
 				error = "";
+				settings.Validate();
+				var metrics = new PipelineMetrics();
+				metrics.StartTotal();
+
+				onProgress?.Invoke(new ObfuscationProgress(ObfuscationStage.SyntaxCheck, "Starting obfuscation..."));
 
 				string OS = Environment.OSVersion.Platform == PlatformID.Unix ? "/usr/bin/" : "";
-				
+
 				string l = Path.Combine(path, "luac.out");
 
 				if (!File.Exists(input))
 					throw new Exception("Invalid input file.");
 
 				Console.WriteLine("Checking file...");
-				
+
 				Process proc = new Process
 				       {
 					       StartInfo =
@@ -45,7 +53,7 @@ namespace IronBrew2
 				       };
 
 				string err = "";
-				
+
 				proc.OutputDataReceived += (sender, args) => { err += args.Data; };
 				proc.ErrorDataReceived += (sender, args) => { err += args.Data; };
 
@@ -55,15 +63,16 @@ namespace IronBrew2
 				proc.WaitForExit();
 
 				error = err;
-				
+
 				if (!File.Exists(l))
 					return false;
-				
+
 				File.Delete(l);
 				string t0 = Path.Combine(path, "t0.lua");
-				
+
 				Console.WriteLine("Stripping comments...");
 
+				err = "";
 				proc = new Process
 				       {
 					       StartInfo =
@@ -93,10 +102,11 @@ namespace IronBrew2
 					return false;
 
 				string t1 = Path.Combine(path, "t1.lua");
-				
+
 				Console.WriteLine("Compiling...");
 
-				File.WriteAllText(t1, new ConstantEncryption(settings, File.ReadAllText(t0, _fuckingLua)).EncryptStrings());
+				File.WriteAllText(t1, new ConstantEncryption(settings, File.ReadAllText(t0, LuaBytecodeEncoding)).EncryptStrings());
+				err = "";
 				proc = new Process
 				       {
 					       StartInfo =
@@ -121,7 +131,7 @@ namespace IronBrew2
 
 				if (!File.Exists(l))
 					return false;
-				
+
 				Console.WriteLine("Obfuscating...");
 
 				Deserializer des    = new Deserializer(File.ReadAllBytes(l));
@@ -134,7 +144,7 @@ namespace IronBrew2
 				}
 
 				Console.WriteLine("Serializing...");
-				
+
 				//shuffle stuff
 				//lChunk.Constants.Shuffle();
 				//lChunk.Functions.Shuffle();
@@ -147,12 +157,13 @@ namespace IronBrew2
 				//string byteLocal = c.Substring(null, "\n");
 				//string rest = c.Substring("\n");
 
-				File.WriteAllText(t2, c, _fuckingLua);
+				File.WriteAllText(t2, c, LuaBytecodeEncoding);
 
 				string t3 = Path.Combine(path, "t3.lua");
-				
+
 				Console.WriteLine("Minifying...");
-				
+
+				err = "";
 				proc = new Process
 				       {
 					       StartInfo =
@@ -161,21 +172,30 @@ namespace IronBrew2
 						       Arguments =
 							       "../Lua/Minifier/luasrcdiet.lua --maximum --opt-entropy --opt-emptylines --opt-eols --opt-numbers --opt-whitespace --opt-locals --noopt-strings \"" +
 							       t2                                                                                                                                                +
-							       "\" -o \"" + 
-							        t3 + 
-							       "\""
-								,
+							       "\" -o \"" +
+							        t3 +
+							       "\"",
+						       UseShellExecute = false,
+						       RedirectStandardError = true,
+						       RedirectStandardOutput = true
 					       }
 				       };
 
+				proc.OutputDataReceived += (sender, args) => { err += args.Data; };
+				proc.ErrorDataReceived += (sender, args) => { err += args.Data; };
+
 				proc.Start();
+				proc.BeginOutputReadLine();
+				proc.BeginErrorReadLine();
 				proc.WaitForExit();
+
+				error = err;
 
 				if (!File.Exists(t3))
 					return false;
-				
+
 				Console.WriteLine("Watermark...");
-				
+
 				File.WriteAllText(Path.Combine(path, "out.lua"), @"--[[
 IronBrew:tm: obfuscation; Version 2.7.0
 
@@ -212,7 +232,7 @@ IronBrew:tm: obfuscation; Version 2.7.0
 ........................................................................................................................................................................................................
 ]]
 
-" + File.ReadAllText(t3, _fuckingLua).Replace("\n", " "), _fuckingLua);
+" + File.ReadAllText(t3, LuaBytecodeEncoding).Replace("\n", " "), LuaBytecodeEncoding);
 				return true;
 			}
 			catch (Exception e)
