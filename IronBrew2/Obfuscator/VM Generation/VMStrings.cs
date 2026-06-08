@@ -169,7 +169,8 @@ local function Wrap(Chunk, Upvalues, Env)
 
 		while true do
 			Inst		= Instr[InstrPoint];
-			Enum		= Inst[OP_ENUM];";
+			Enum		= Inst[OP_ENUM];
+			local A, B, C = Inst[OP_A], Inst[OP_B], Inst[OP_C];";
 
 		public static string VMP3 = @"
 			InstrPoint	= InstrPoint + 1;

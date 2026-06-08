@@ -9,6 +9,6 @@ namespace IronBrew2.Obfuscator.Opcodes
 			instruction.OpCode == Opcode.Unm;
 
 		public override string GetObfuscated(ObfuscationContext context) =>
-			"Stk[Inst[OP_A]]=-Stk[Inst[OP_B]];";
+			"Stk[_REG_A]=-Stk[_REG_B];";
 	}
 }

@@ -588,7 +588,10 @@ local ToNumber = tonumber;";
 			vm = vm.Replace("OP_ENUM", "1")
 				.Replace("OP_A", "2")
 				.Replace("OP_B", "3")
-				.Replace("OP_C", "4");
+				.Replace("OP_C", "4")
+				.Replace("_REG_A", "A")
+				.Replace("_REG_B", "B")
+				.Replace("_REG_C", "C");
 
 			
 			return vm;

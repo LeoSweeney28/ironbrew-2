@@ -10,8 +10,7 @@ namespace IronBrew2.Obfuscator.Opcodes
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A];
-do return Unpack(Stk, A, A + Inst[OP_B]) end;
+do return Unpack(Stk, A, A + B) end;
 ";
 
 		public override void Mutate(Instruction instruction)
@@ -27,7 +26,7 @@ do return Unpack(Stk, A, A + Inst[OP_B]) end;
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-do return Stk[Inst[OP_A]] end
+do return Stk[A] end
 ";
 	}
 	
@@ -38,7 +37,6 @@ do return Stk[Inst[OP_A]] end
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]; 
 do return Stk[A], Stk[A + 1] end
 ";
 	}
@@ -50,7 +48,6 @@ do return Stk[A], Stk[A + 1] end
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]; 
 do return Unpack(Stk, A, Top) end;";
 	}
 	

@@ -9,7 +9,7 @@ namespace IronBrew2.Obfuscator.Opcodes
 			instruction.OpCode == Opcode.Jmp;
 
 		public override string GetObfuscated(ObfuscationContext context) =>
-			"InstrPoint=Inst[OP_B];";
+			"InstrPoint=_REG_B;";
 		
 		public override void Mutate(Instruction instruction)
 		{

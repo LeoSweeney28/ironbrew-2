@@ -10,9 +10,8 @@ namespace IronBrew2.Obfuscator.Opcodes
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A];
 local T = Stk[A];
-for Idx = A + 1, Inst[OP_B] do 
+for Idx = A + 1, B do 
 	Insert(T, Stk[Idx])
 end;";
 
@@ -29,7 +28,6 @@ end;";
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A];
 local T = Stk[A];
 for Idx = A + 1, Top do 
 	Insert(T, Stk[Idx])
@@ -44,9 +42,8 @@ end;";
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
 InstrPoint = InstrPoint + 1
-local A = Inst[OP_A];
 local T = Stk[A];
-for Idx = A + 1, Inst[OP_B] do 
+for Idx = A + 1, B do 
 	Insert(T, Stk[Idx])
 end;";
 

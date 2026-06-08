@@ -11,10 +11,9 @@ namespace IronBrew2.Obfuscator.Opcodes
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
-local Results = { Stk[A](Unpack(Stk, A + 1, Inst[OP_B])) };
+local Results = { Stk[A](Unpack(Stk, A + 1, B)) };
 local Edx = 0;
-for Idx = A, Inst[OP_C] do 
+for Idx = A, C do 
 	Edx = Edx + 1;
 	Stk[Idx] = Results[Edx];
 end
@@ -35,10 +34,9 @@ end
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 local Results = { Stk[A](Stk[A + 1]) };
 local Edx = 0;
-for Idx = A, Inst[OP_C] do 
+for Idx = A, C do 
 	Edx = Edx + 1;
 	Stk[Idx] = Results[Edx];
 end
@@ -57,10 +55,9 @@ end
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 local Results = { Stk[A](Unpack(Stk, A + 1, Top)) };
 local Edx = 0;
-for Idx = A, Inst[OP_C] do 
+for Idx = A, C do 
 	Edx = Edx + 1;
 	Stk[Idx] = Results[Edx];
 end
@@ -79,9 +76,8 @@ end
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 local Results = { Stk[A]() };
-local Limit = Inst[OP_C];
+local Limit = C;
 local Edx = 0;
 for Idx = A, Limit do 
 	Edx = Edx + 1;
@@ -102,8 +98,7 @@ end
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
-local Results, Limit = _R(Stk[A](Unpack(Stk, A + 1, Inst[OP_B])))
+local Results, Limit = _R(Stk[A](Unpack(Stk, A + 1, B)))
 Top = Limit + A - 1
 local Edx = 0;
 for Idx = A, Top do 
@@ -125,7 +120,6 @@ end;
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 local Results, Limit = _R(Stk[A](Stk[A + 1]))
 Top = Limit + A - 1
 local Edx = 0;
@@ -148,8 +142,7 @@ end;
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
-Stk[A](Unpack(Stk, A + 1, Inst[OP_B]))
+Stk[A](Unpack(Stk, A + 1, B))
 ";
 		public override void Mutate(Instruction instruction)
 		{
@@ -165,7 +158,6 @@ Stk[A](Unpack(Stk, A + 1, Inst[OP_B]))
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 Stk[A](Stk[A + 1])
 ";
 	}
@@ -178,7 +170,6 @@ Stk[A](Stk[A + 1])
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 local Results, Limit = _R(Stk[A](Unpack(Stk, A + 1, Top)))
 Top = Limit + A - 1
 local Edx = 0;
@@ -197,7 +188,6 @@ end;
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 Stk[A](Unpack(Stk, A + 1, Top))
 ";
 	}
@@ -210,7 +200,6 @@ Stk[A](Unpack(Stk, A + 1, Top))
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 local Results, Limit = _R(Stk[A]())
 Top = Limit + A - 1
 local Edx = 0;
@@ -228,7 +217,7 @@ end;
 			instruction.C == 1;
 
 		public override string GetObfuscated(ObfuscationContext context) =>
-			"Stk[Inst[OP_A]]();";
+			"Stk[A]();";
 	}
 	
 	public class OpCallC2 : VOpcode
@@ -239,8 +228,7 @@ end;
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
-Stk[A] = Stk[A](Unpack(Stk, A + 1, Inst[OP_B])) 
+Stk[A] = Stk[A](Unpack(Stk, A + 1, B)) 
 ";
 		public override void Mutate(Instruction instruction)
 		{
@@ -256,7 +244,6 @@ Stk[A] = Stk[A](Unpack(Stk, A + 1, Inst[OP_B]))
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 Stk[A] = Stk[A](Stk[A + 1]) 
 ";
 	}
@@ -269,7 +256,6 @@ Stk[A] = Stk[A](Stk[A + 1])
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 Stk[A] = Stk[A](Unpack(Stk, A + 1, Top))
 ";
 	}
@@ -282,7 +268,6 @@ Stk[A] = Stk[A](Unpack(Stk, A + 1, Top))
 
 		public override string GetObfuscated(ObfuscationContext context) =>
 			@"
-local A = Inst[OP_A]
 Stk[A] = Stk[A]()
 ";
 	}
