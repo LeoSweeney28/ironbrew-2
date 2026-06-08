@@ -12,7 +12,7 @@ namespace IronBrew2.Obfuscator.Opcodes
 			@"
 local T = Stk[A];
 for Idx = A + 1, B do 
-	Insert(T, Stk[Idx])
+	T[#T+1] = Stk[Idx]
 end;";
 
 		public override void Mutate(Instruction instruction)
@@ -30,7 +30,7 @@ end;";
 			@"
 local T = Stk[A];
 for Idx = A + 1, Top do 
-	Insert(T, Stk[Idx])
+	T[#T+1] = Stk[Idx]
 end;";
 	}
 	
@@ -44,7 +44,7 @@ end;";
 InstrPoint = InstrPoint + 1
 local T = Stk[A];
 for Idx = A + 1, B do 
-	Insert(T, Stk[Idx])
+	T[#T+1] = Stk[Idx]
 end;";
 
 		public override void Mutate(Instruction instruction)
