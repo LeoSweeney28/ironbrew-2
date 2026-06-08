@@ -1,5 +1,6 @@
+
 print('IronBrew 2:tm: Benchmark-y Meme')
-local Iterations = 100000
+local Iterations = 1000
 print('Iterations: ' .. tostring(Iterations))
 
 print('CLOSURE testing.')

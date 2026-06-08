@@ -26,4 +26,13 @@ namespace IronBrew2.Obfuscator.Opcodes
 			instruction.ConstantMask |= InstructionConstantMask.RC;
 		}
 	}
+
+	public class OpGetTableOptimized : VOpcode
+	{
+		public override bool IsInstruction(Instruction instruction) =>
+			false;
+
+		public override string GetObfuscated(ObfuscationContext context) =>
+			"local _T=Stk[_REG_B];Stk[_REG_A]=_T[Stk[_REG_C]];";
+	}
 }

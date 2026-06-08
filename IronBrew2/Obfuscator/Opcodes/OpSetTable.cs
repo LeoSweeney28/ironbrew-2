@@ -11,6 +11,15 @@ namespace IronBrew2.Obfuscator.Opcodes
 		public override string GetObfuscated(ObfuscationContext context) =>
 			"Stk[_REG_A][Stk[_REG_B]]=Stk[_REG_C];";
 	}
+
+	public class OpSetTableOptimized : VOpcode
+	{
+		public override bool IsInstruction(Instruction instruction) =>
+			false;
+
+		public override string GetObfuscated(ObfuscationContext context) =>
+			"local _T=Stk[_REG_A];_T[Stk[_REG_B]]=Stk[_REG_C];";
+	}
 	
 	public class OpSetTableB : VOpcode
 	{

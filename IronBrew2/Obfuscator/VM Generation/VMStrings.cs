@@ -178,11 +178,12 @@ namespace IronBrew2.Obfuscator.VM_Generation
 
 			local Inst;
 			local Enum;
+			local A, B, C;
 
 			while true do
 				Inst		= Instr[InstrPoint];
 				Enum		= Inst[OP_ENUM];
-				local A, B, C = Inst[OP_A], Inst[OP_B], Inst[OP_C];";
+				A, B, C = Inst[OP_A], Inst[OP_B], Inst[OP_C];;
 
 		public static string VMP3 = @"
 			InstrPoint	= InstrPoint + 1;
