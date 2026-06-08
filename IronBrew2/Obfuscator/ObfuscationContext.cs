@@ -45,11 +45,17 @@ namespace IronBrew2.Obfuscator
 
 		public Dictionary<Opcode, VOpcode> InstructionMapping = new Dictionary<Opcode, VOpcode>();
 
+		// Legacy XOR keys (kept for backward compatibility)
 		public int PrimaryXorKey;
-			
 		public int IXorKey1;
 		public int IXorKey2;
-		
+
+		// New secure encryption keys
+		public byte[] AesEncryptionKey;
+		public byte[] HmacKey;
+		public string EncryptionKeyHex;
+		public string HmacKeyHex;
+
 		public ObfuscationContext(Chunk chunk)
 		{
 			HeadChunk = chunk;
@@ -65,9 +71,16 @@ namespace IronBrew2.Obfuscator
 			ConstantMapping = Enumerable.Range(0, 4).ToArray();
 			ConstantMapping.Shuffle();
 
+			// Legacy keys (weak - kept for backward compatibility)
 			PrimaryXorKey = SecureRandom.NextInt(0, 256);
 			IXorKey1 = SecureRandom.NextInt(0, 256);
 			IXorKey2 = SecureRandom.NextInt(0, 256);
+
+			// New secure keys
+			AesEncryptionKey = Cryptography.AesEncryption.GenerateKey();
+			HmacKey = IntegrityProtection.GenerateKey();
+			EncryptionKeyHex = BitConverter.ToString(AesEncryptionKey).Replace("-", "").ToLower();
+			HmacKeyHex = BitConverter.ToString(HmacKey).Replace("-", "").ToLower();
 		}
 	}
 }
