@@ -16,9 +16,20 @@ namespace IronBrew2.Obfuscator
 		public int MaxMiniSuperOperators { get; set; }
 		public int MaxMegaSuperOperators { get; set; }
 		public int MaxMutations { get; set; }
-		// When true: bytecode is AES-256-CBC encrypted instead of XOR;
-		// an HMAC-SHA256 checksum is embedded and verified at VM startup.
+		// When true: bytecode is AES-encrypted instead of XOR, with a checksum
+		// embedded and verified at VM startup.
+		// NOTE: the embedded Lua AES decryptor (VMStrings.AesDecryptorPreamble)
+		// is written using Lua 5.3 bitwise operators (`~`, `//`), which are not
+		// valid in the Lua 5.1 dialect this obfuscator targets (luac/luajit).
+		// Enabling this currently produces output that fails to parse. Leave
+		// disabled until the embedded AES implementation is rewritten using
+		// Lua 5.1-compatible bit operations.
 		public bool UseAesEncryption { get; set; }
+
+		// Whether to prepend the IronBrew ASCII-art watermark/banner comment to
+		// the output file. Adds several KB to the output with no functional
+		// effect; disable for size-sensitive use cases.
+		public bool Watermark { get; set; }
 
 		public ObfuscationSettings()
 		{
@@ -33,7 +44,8 @@ namespace IronBrew2.Obfuscator
 			MaxMegaSuperOperators = 120;
 			MaxMiniSuperOperators = 120;
 			MaxMutations = 200;
-			UseAesEncryption = true;
+			UseAesEncryption = false;
+			Watermark = true;
 		}
 
 		public void Validate()
@@ -71,6 +83,7 @@ Super Operators:          {SuperOperators}
 Max Mini Super Ops:       {MaxMiniSuperOperators}
 Max Mega Super Ops:       {MaxMegaSuperOperators}
 Max Mutations:            {MaxMutations}
+Watermark:                {Watermark}
 ==========================";
 		}
 	}

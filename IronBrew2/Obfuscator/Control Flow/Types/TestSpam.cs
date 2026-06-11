@@ -4,6 +4,7 @@ using System.Linq;
 using IronBrew2.Bytecode_Library.Bytecode;
 using IronBrew2.Bytecode_Library.IR;
 using IronBrew2.Extensions;
+using IronBrew2.Utilities;
 
 namespace IronBrew2.Obfuscator.Control_Flow.Types
 {
@@ -25,7 +26,7 @@ namespace IronBrew2.Obfuscator.Control_Flow.Types
 		{
 			Instructions = Instructions.ToList();
 			CFGenerator cg = new CFGenerator();
-			Random r = new Random();
+			Random r = SharedRandom.Instance;
 			
 			for (int i =  Instructions.Count - 1; i >= 0; i--)
 			{

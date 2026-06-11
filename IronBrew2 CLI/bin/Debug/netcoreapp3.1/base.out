@@ -1,0 +1,10 @@
+prometheus benchmark
+name                 iterations  time(s)
+arithmetic loop      500000      0.001000
+function calls       400000      0.000000
+table create/insert  400000      0.010000
+table iteration      2000        0.007000
+string concat        4000        0.001000
+closure creation     300000      0.015000
+metatable index      1000000     0.000000
+total                            0.034000

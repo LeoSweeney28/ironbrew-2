@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using IronBrew2.Bytecode_Library.IR;
+using IronBrew2.Utilities;
 
 namespace IronBrew2.Obfuscator.Opcodes
 {
 	public class OpMutated : VOpcode
 	{
-		public static Random rand = new Random();
+		public static Random rand = SharedRandom.Instance;
 		
 		public VOpcode Mutated;
 		public int[] Registers;

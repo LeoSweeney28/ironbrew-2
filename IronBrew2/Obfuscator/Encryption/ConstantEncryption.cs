@@ -28,6 +28,38 @@ namespace IronBrew2.Obfuscator.Encryption
 			return $"((function(b)IB_INLINING_START(true);local function xor(b,c)IB_INLINING_START(true);local d,e=1,0;while b>0 and c>0 do local f,g=b%2,c%2;if f~=g then e=e+d end;b,c,d=(b-f)/2,(c-g)/2,d*2 end;if b<c then b=c end;while b>0 do local f=b%2;if f>0 then e=e+d end;b,d=(b-f)/2,d*2 end;return e end;local c=\"\"local e=string.sub;local h=string.char;local t = {{}} for j=0, 255 do local x=h(j);t[j]=x;t[x]=j;end;local f=\"{string.Join("", Table.Select(t => "\\" + t.ToString()))}\" for g=1,#b do local x=(g-1) % {Table.Length}+1 c=c..t[xor(t[e(b,g,g)],t[e(f, x, x)])];end;return c;end)(\"{string.Join("", encrypted.Select(t => "\\" + t.ToString()))}\"))";
 		}
 
+		// Encrypts bytes with this Decryptor's (unique, per-call) Table and emits
+		// a call to the shared decrypt helper, passing both the ciphertext and the
+		// key. Unlike Encrypt(), which bakes a single shared Table into a bespoke
+		// IIFE per string, this lets every string use its own random key while the
+		// decryption logic itself (the helper function) is only emitted once -
+		// avoiding both the repeated-key/Vigenere weakness of a single shared
+		// Table and the size cost of duplicating the decryptor per string.
+		public string EncryptCall(byte[] bytes, string funcName)
+		{
+			List<byte> encrypted = new List<byte>();
+
+			int L = Table.Length;
+
+			for (var index = 0; index < bytes.Length; index++)
+				encrypted.Add((byte) (bytes[index] ^ Table[index % L]));
+
+			string data = string.Join("", encrypted.Select(t => "\\" + t.ToString()));
+			string key  = string.Join("", Table.Select(t => "\\" + t.ToString()));
+
+			// Parenthesized so that call-sugar like print"foo" (which becomes
+			// print<replacement>) still parses as a call rather than the
+			// replacement's leading identifier merging into "print"'s name.
+			return $"({funcName}(\"{data}\",\"{key}\"))";
+		}
+
+		// Emits the shared decrypt helper referenced by EncryptCall(). Reuses the
+		// same arithmetic xor bit-trick as Encrypt() (Lua 5.1 has no bitwise ops),
+		// but builds the result via table.concat over an array instead of
+		// repeated string concatenation.
+		public static string GenerateDecryptHelper(string funcName) =>
+			$"local function {funcName}(b,f)local function xor(b,c)local d,e=1,0;while b>0 and c>0 do local g,h=b%2,c%2;if g~=h then e=e+d end;b,c,d=(b-g)/2,(c-h)/2,d*2 end;if b<c then b=c end;while b>0 do local g=b%2;if g>0 then e=e+d end;b,d=(b-g)/2,d*2 end;return e end;local t={{}};for j=0,255 do local x=string.char(j);t[j]=x;t[x]=j end;local L=#f;local r={{}};for i=1,#b do r[i]=t[xor(t[string.sub(b,i,i)],t[string.sub(f,(i-1)%L+1,(i-1)%L+1)])] end;return table.concat(r) end;";
+
 		public Decryptor(string name, int maxLen)
 		{
 			Name = name;
@@ -40,23 +72,6 @@ namespace IronBrew2.Obfuscator.Encryption
 		private string _src;
 		private ObfuscationSettings _settings;
 		private Encoding LuaBytecodeEncoding => EncodingConstants.LuaBytecodeEncoding;
-
-		public Decryptor GenerateGenericDecryptor(MatchCollection matches)
-		{
-			int len = 0;
-
-			for (int i = 0; i < matches.Count; i++)
-			{
-				int l = matches[i].Length;
-				if (l > len)
-					len = l;
-			}
-
-			if (len > _settings.DecryptTableLen)
-				len = _settings.DecryptTableLen;
-			
-			return new Decryptor("IRONBREW_STR_DEC_GENERIC", len);
-		}
 
 		public static byte[] UnescapeLuaString(string str)
 		{
@@ -143,9 +158,9 @@ namespace IronBrew2.Obfuscator.Encryption
 
 				int indDiff = 0;
 				var   matches = r.Matches(_src);
-				
-				Decryptor dec     = GenerateGenericDecryptor(matches);
-			
+
+				const string decryptFunc = "IRONBREW_STR_DECRYPT";
+
 				foreach (Match m in matches)
 				{
 					string before = _src.Substring(0, m.Index        + indDiff);
@@ -155,13 +170,26 @@ namespace IronBrew2.Obfuscator.Encryption
 
 					if (captured.StartsWith("[STR_ENCRYPT]"))
 						captured = captured.Substring(13);
-					
-					string nStr = before + dec.Encrypt(m.Groups[2].Value != "" ? UnescapeLuaString(captured) : LuaBytecodeEncoding.GetBytes(captured));
+
+					byte[] bytes = m.Groups[2].Value != "" ? UnescapeLuaString(captured) : LuaBytecodeEncoding.GetBytes(captured);
+
+					// Each string gets its own random key, instead of every string in
+					// the program being XORed against the same repeating table - that
+					// shared-key scheme let an attacker crib-drag/frequency-analyze the
+					// whole program at once. The (small) shared decrypt helper below is
+					// emitted once regardless of how many strings are encrypted.
+					int keyLen = Math.Max(1, Math.Min(bytes.Length, _settings.DecryptTableLen));
+					Decryptor dec = new Decryptor(decryptFunc, keyLen);
+
+					string nStr = before + dec.EncryptCall(bytes, decryptFunc);
 					nStr += after;
-				
+
 					indDiff += nStr.Length - _src.Length;
 					_src    =  nStr;
 				}
+
+				if (matches.Count > 0)
+					_src = Decryptor.GenerateDecryptHelper(decryptFunc) + _src;
 			}
 
 			else
@@ -195,7 +223,13 @@ namespace IronBrew2.Obfuscator.Encryption
 				}
 			}
 			
-			if (_settings.EncryptImportantStrings)
+			// When EncryptStrings already ran, every string literal in _src has
+			// already been replaced by a (digits-and-backslashes-only) ciphertext
+			// escape sequence from EncryptCall - no "important" keyword can ever
+			// match those, making this pass a no-op that costs a full regex sweep
+			// over the (now much larger) source. Only run it when EncryptStrings
+			// left the original string literals in place.
+			if (_settings.EncryptImportantStrings && !_settings.EncryptStrings)
 			{
 				Regex r = new Regex(encRegex, RegexOptions.Singleline | RegexOptions.Compiled);
 				var matches = r.Matches(_src);

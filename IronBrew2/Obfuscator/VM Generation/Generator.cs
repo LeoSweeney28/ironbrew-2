@@ -11,6 +11,7 @@ using IronBrew2.Bytecode_Library.IR;
 using IronBrew2.Cryptography;
 using IronBrew2.Extensions;
 using IronBrew2.Obfuscator.Opcodes;
+using IronBrew2.Utilities;
 
 namespace IronBrew2.Obfuscator.VM_Generation
 {
@@ -101,7 +102,7 @@ namespace IronBrew2.Obfuscator.VM_Generation
 
 		public List<OpMutated> GenerateMutations(List<VOpcode> opcodes)
 		{
-			Random r = new Random();
+			Random r = SharedRandom.Instance;
 			List<OpMutated> mutated = new List<OpMutated>();
 
 			foreach (VOpcode opc in opcodes)
@@ -171,7 +172,7 @@ namespace IronBrew2.Obfuscator.VM_Generation
 		public List<OpSuperOperator> GenerateSuperOperators(Chunk chunk, int maxSize, int minSize = 5)
 		{
 			List<OpSuperOperator> results = new List<OpSuperOperator>();
-			Random                r       = new Random();
+			Random                r       = SharedRandom.Instance;
 
 			bool[] skip = new bool[chunk.Instructions.Count + 1];
 
@@ -354,7 +355,7 @@ namespace IronBrew2.Obfuscator.VM_Generation
 		
 		public string GenerateVM(ObfuscationSettings settings)
 		{
-			Random r = new Random();
+			Random r = SharedRandom.Instance;
 
 			List<VOpcode> virtuals = Assembly.GetExecutingAssembly().GetTypes()
 			                                 .Where(t => t.IsSubclassOf(typeof(VOpcode)))
@@ -482,6 +483,16 @@ local ToNumber = tonumber;";
 				vm += sb + "';\n";
 			}
 
+			// Tamper check over the (post-XOR / pre-decryption) byte stream - by
+			// the time ByteString is assigned above it equals `bs` exactly in all
+			// three branches (compression and AES decryption are both lossless),
+			// so the same hash can be computed at build time over `bs` here.
+			ulong bytecodeChecksum = 0;
+			foreach (byte b in bs)
+				bytecodeChecksum = (bytecodeChecksum * 31 + b) % 1000000007UL;
+
+			vm += VMStrings.IntegrityCheck.Replace("CHECKSUM_VALUE", bytecodeChecksum.ToString());
+
 			int maxConstants = 0;
 
 			void ComputeConstants(Chunk c)
@@ -496,7 +507,8 @@ local ToNumber = tonumber;";
 			ComputeConstants(_context.HeadChunk);
 
 			vm += VMStrings.VMP1
-				.Replace("XOR_KEY", _context.PrimaryXorKey.ToString())
+				.Replace("XOR_KEY_TABLE", "{" + string.Join(",", _context.XorKey) + "}")
+				.Replace("XOR_KEY_LEN", _context.XorKey.Length.ToString())
 				.Replace("CONST_BOOL", _context.ConstantMapping[1].ToString())
 				.Replace("CONST_FLOAT", _context.ConstantMapping[2].ToString())
 				.Replace("CONST_STRING", _context.ConstantMapping[3].ToString());
@@ -614,7 +626,11 @@ local ToNumber = tonumber;";
 
 					str += "if Enum <= " + sorted[0].Last() + " then ";
 					str += GetStr(sorted[0]);
-					str += " else";
+					// Note the trailing space: GetStr(sorted[1]) begins with "if Enum ...",
+					// and "else" immediately followed by "if" with no separating space
+					// lexes as the single `elseif` keyword instead of a nested
+					// if/end block, throwing off the end-count for the whole tree.
+					str += " else ";
 					str += GetStr(sorted[1]);
 					str += " end";
 				}

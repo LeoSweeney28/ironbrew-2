@@ -5,6 +5,7 @@ using System.Text;
 using IronBrew2.Bytecode_Library.IR;
 using IronBrew2.Cryptography;
 using IronBrew2.Obfuscator;
+using IronBrew2.Utilities;
 
 namespace IronBrew2.Bytecode_Library.Bytecode
 {
@@ -12,7 +13,7 @@ namespace IronBrew2.Bytecode_Library.Bytecode
 	{
 		private ObfuscationContext _context;
 		private ObfuscationSettings _settings;
-		private Random _r = new Random();
+		private Random _r = SharedRandom.Instance;
 		private Encoding _fuckingLua = Encoding.GetEncoding(28591);
 
 		public Serializer(ObfuscationContext context, ObfuscationSettings settings)
@@ -32,7 +33,7 @@ namespace IronBrew2.Bytecode_Library.Bytecode
 			void WriteByte(byte b)
 			{
 				if (useXor)
-					b ^= (byte)(_context.PrimaryXorKey);
+					b ^= _context.XorKey[bytes.Count % _context.XorKey.Length];
 
 				bytes.Add(b);
 			}
@@ -42,10 +43,11 @@ namespace IronBrew2.Bytecode_Library.Bytecode
 				if (!BitConverter.IsLittleEndian && checkEndian)
 					b = b.Reverse().ToArray();
 
-				bytes.AddRange(b.Select(i =>
+				int start = bytes.Count;
+				bytes.AddRange(b.Select((i, idx) =>
 				{
 					if (useXor)
-						i ^= (byte)(_context.PrimaryXorKey);
+						i ^= _context.XorKey[(start + idx) % _context.XorKey.Length];
 
 					return i;
 				}));

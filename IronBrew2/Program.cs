@@ -8,6 +8,7 @@ using IronBrew2.Bytecode_Library.IR;
 using IronBrew2.Cryptography;
 using IronBrew2.Obfuscator;
 using IronBrew2.Obfuscator.Control_Flow;
+using IronBrew2.Obfuscator.Control_Flow.Types;
 using IronBrew2.Obfuscator.Encryption;
 using IronBrew2.Obfuscator.VM_Generation;
 using IronBrew2.Utilities;
@@ -31,7 +32,13 @@ namespace IronBrew2
 
 				onProgress?.Invoke(new ObfuscationProgress(ObfuscationStage.SyntaxCheck, "Starting obfuscation..."));
 
-				string OS = Environment.OSVersion.Platform == PlatformID.Unix ? "/usr/bin/" : "";
+				// On Windows, Process.Start (UseShellExecute=false) does not search the
+				// current directory for relative file names, so the bundled luac/luajit
+				// binaries (which live next to this assembly) must be referenced by their
+				// full path. On Unix-likes we fall back to the system-installed tools.
+				bool isUnix = Environment.OSVersion.Platform == PlatformID.Unix;
+				string OS = isUnix ? "/usr/bin/" : AppContext.BaseDirectory;
+				string EXE = isUnix ? "" : ".exe";
 
 				string l = Path.Combine(path, "luac.out");
 
@@ -44,7 +51,7 @@ namespace IronBrew2
 				       {
 					       StartInfo =
 					       {
-						       FileName  = $"{OS}luac",
+						       FileName  = $"{OS}luac{EXE}",
 						       Arguments = "-o \"" + l + "\" \"" + input + "\"",
 						       UseShellExecute = false,
 						       RedirectStandardError = true,
@@ -54,8 +61,8 @@ namespace IronBrew2
 
 				string err = "";
 
-				proc.OutputDataReceived += (sender, args) => { err += args.Data; };
-				proc.ErrorDataReceived += (sender, args) => { err += args.Data; };
+				proc.OutputDataReceived += (sender, args) => { if (args.Data != null) err += args.Data + "\n"; };
+				proc.ErrorDataReceived += (sender, args) => { if (args.Data != null) err += args.Data + "\n"; };
 
 				proc.Start();
 				proc.BeginOutputReadLine();
@@ -77,7 +84,7 @@ namespace IronBrew2
 				       {
 					       StartInfo =
 					       {
-						       FileName = $"{OS}luajit",
+						       FileName = $"{OS}luajit{EXE}",
 						       Arguments =
 							       "../Lua/Minifier/luasrcdiet.lua --noopt-whitespace --noopt-emptylines --noopt-numbers --noopt-locals --noopt-strings --opt-comments \"" +
 							       input                                                       +
@@ -88,8 +95,8 @@ namespace IronBrew2
 					       }
 				       };
 
-				proc.OutputDataReceived += (sender, args) => { err += args.Data; };
-				proc.ErrorDataReceived  += (sender, args) => { err += args.Data; };
+				proc.OutputDataReceived += (sender, args) => { if (args.Data != null) err += args.Data + "\n"; };
+				proc.ErrorDataReceived  += (sender, args) => { if (args.Data != null) err += args.Data + "\n"; };
 
 				proc.Start();
 				proc.BeginOutputReadLine();
@@ -111,7 +118,7 @@ namespace IronBrew2
 				       {
 					       StartInfo =
 					       {
-						       FileName  = $"{OS}luac",
+						       FileName  = $"{OS}luac{EXE}",
 						       Arguments = "-o \"" + l + "\" \"" + t1 + "\"",
 						       UseShellExecute = false,
 						       RedirectStandardError = true,
@@ -119,8 +126,8 @@ namespace IronBrew2
 					       }
 				       };
 
-				proc.OutputDataReceived += (sender, args) => { err += args.Data; };
-				proc.ErrorDataReceived += (sender, args) => { err += args.Data; };
+				proc.OutputDataReceived += (sender, args) => { if (args.Data != null) err += args.Data + "\n"; };
+				proc.ErrorDataReceived += (sender, args) => { if (args.Data != null) err += args.Data + "\n"; };
 
 				proc.Start();
 				proc.BeginOutputReadLine();
@@ -136,6 +143,16 @@ namespace IronBrew2
 
 				Deserializer des    = new Deserializer(File.ReadAllBytes(l));
 				Chunk lChunk = des.DecodeFile();
+
+				// ConstantEncryption can wrap encrypted string literals in an IIFE that
+				// starts with calls to the IB_INLINING_START marker function - via the
+				// EncryptImportantStrings pass and the [STR_ENCRYPT]-tag pass (which run
+				// regardless of EncryptStrings), not just the general EncryptStrings pass.
+				// Inlining.DoChunks strips/converts those markers (and optionally inlines
+				// the IIFE), and is a cheap no-op when none are present. Run it
+				// unconditionally so no IB_INLINING_START call is ever left as a reference
+				// to an undefined global, which would crash the obfuscated script at runtime.
+				new Inlining(lChunk).DoChunks();
 
 				if (settings.ControlFlow)
 				{
@@ -168,7 +185,7 @@ namespace IronBrew2
 				       {
 					       StartInfo =
 					       {
-						       FileName = $"{OS}luajit",
+						       FileName = $"{OS}luajit{EXE}",
 						       Arguments =
 							       "../Lua/Minifier/luasrcdiet.lua --maximum --opt-entropy --opt-emptylines --opt-eols --opt-numbers --opt-whitespace --opt-locals --noopt-strings \"" +
 							       t2                                                                                                                                                +
@@ -181,8 +198,8 @@ namespace IronBrew2
 					       }
 				       };
 
-				proc.OutputDataReceived += (sender, args) => { err += args.Data; };
-				proc.ErrorDataReceived += (sender, args) => { err += args.Data; };
+				proc.OutputDataReceived += (sender, args) => { if (args.Data != null) err += args.Data + "\n"; };
+				proc.ErrorDataReceived += (sender, args) => { if (args.Data != null) err += args.Data + "\n"; };
 
 				proc.Start();
 				proc.BeginOutputReadLine();
@@ -194,9 +211,14 @@ namespace IronBrew2
 				if (!File.Exists(t3))
 					return false;
 
-				Console.WriteLine("Watermark...");
+				string outLua = Path.Combine(path, "out.lua");
+				string minified = File.ReadAllText(t3, LuaBytecodeEncoding).Replace("\n", " ");
 
-				File.WriteAllText(Path.Combine(path, "out.lua"), @"--[[
+				if (settings.Watermark)
+				{
+					Console.WriteLine("Watermark...");
+
+					File.WriteAllText(outLua, @"--[[
 IronBrew:tm: obfuscation; Version 2.7.0
 
 ........................................................................................................................................................................................................
@@ -232,7 +254,22 @@ IronBrew:tm: obfuscation; Version 2.7.0
 ........................................................................................................................................................................................................
 ]]
 
-" + File.ReadAllText(t3, LuaBytecodeEncoding).Replace("\n", " "), LuaBytecodeEncoding);
+" + minified, LuaBytecodeEncoding);
+				}
+				else
+				{
+					File.WriteAllText(outLua, minified, LuaBytecodeEncoding);
+				}
+
+				// Clean up intermediate pipeline artifacts. t1.lua/luac.out in particular
+				// contain a far-less-obfuscated version of the script (string-encrypted
+				// but not yet virtualized) and shouldn't be left lying around next to out.lua.
+				foreach (string temp in new[] { l, t0, t1, t2, t3 })
+				{
+					if (File.Exists(temp))
+						File.Delete(temp);
+				}
+
 				return true;
 			}
 			catch (Exception e)

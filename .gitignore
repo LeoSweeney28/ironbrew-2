@@ -1,6 +1,19 @@
-
 IronBrew2 CLI/obj/
-
 IronBrew2/obj/
+
+IronBrew2 CLI/bin/Debug/netcoreapp3.1/IronBrew2*
+IronBrew2 CLI/bin/Debug/netcoreapp3.1/temp/
+IronBrew2 CLI/bin/Debug/netcoreapp3.1/out.lua
+IronBrew2 CLI/bin/Debug/netcoreapp3.1/test.lua
+IronBrew2 CLI/bin/Debug/netcoreapp3.1/sha-time-encrypted.lua
+IronBrew2/bin/Debug/netcoreapp3.1/IronBrew2*
+
+IronBrew2 CLI/temp/
+IronBrew2 CLI/out.lua
+
+/out.lua
+/FINAL_OUTPUT.lua
+
+*.user
 
 .idea/.idea.IronBrew2_Core/.idea/

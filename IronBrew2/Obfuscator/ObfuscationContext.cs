@@ -45,10 +45,13 @@ namespace IronBrew2.Obfuscator
 
 		public Dictionary<Opcode, VOpcode> InstructionMapping = new Dictionary<Opcode, VOpcode>();
 
-		// Legacy XOR keys (kept for backward compatibility)
-		public int PrimaryXorKey;
-		public int IXorKey1;
-		public int IXorKey2;
+		// Rotating multi-byte XOR key protecting the serialized VM bytecode blob
+		// (the active protection for every preset, since UseAesEncryption is
+		// permanently disabled). A single repeating byte is trivially recovered
+		// via frequency analysis (the most common plaintext byte reveals the key
+		// in one step); a longer random key raises the required ciphertext-only
+		// attack to a Vigenere-style analysis instead.
+		public byte[] XorKey;
 
 		// New secure encryption keys
 		public byte[] AesEncryptionKey;
@@ -71,10 +74,7 @@ namespace IronBrew2.Obfuscator
 			ConstantMapping = Enumerable.Range(0, 4).ToArray();
 			ConstantMapping.Shuffle();
 
-			// Legacy keys (weak - kept for backward compatibility)
-			PrimaryXorKey = SecureRandom.NextInt(0, 256);
-			IXorKey1 = SecureRandom.NextInt(0, 256);
-			IXorKey2 = SecureRandom.NextInt(0, 256);
+			XorKey = SecureRandom.NextBytes(16);
 
 			// New secure keys
 			AesEncryptionKey = Cryptography.AesEncryption.GenerateKey();

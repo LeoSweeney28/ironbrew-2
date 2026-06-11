@@ -2,12 +2,13 @@
 using System.Linq;
 using IronBrew2.Bytecode_Library.Bytecode;
 using IronBrew2.Bytecode_Library.IR;
+using IronBrew2.Utilities;
 
 namespace IronBrew2.Obfuscator.Control_Flow
 {
 	public class CFGenerator
 	{
-		public Random Random = new Random();
+		public Random Random = SharedRandom.Instance;
 
 		public Instruction NextJMP(Chunk lc, Instruction Reference) =>
 			new Instruction(lc, Opcode.Jmp, Reference);

@@ -160,7 +160,7 @@ local function _ibHmacVerify(data, expectedHex)
 	end
 	local computed=string.format(""%08x"", s2*65536+s1)
 	if computed ~= expectedHex then
-		error(""[IronBrew2] Bytecode integrity check failed - file may be tampered"")
+		error(""bad bytecode"")
 	end
 end
 
@@ -168,6 +168,23 @@ local ByteString = _ibDecrypt(ENCRYPTED_BLOB, ""AES_KEY_HEX"", ""AES_IV_HEX"")
 _ibHmacVerify(ByteString, ""HMAC_CHECKSUM"")
 ";
 
+		// Cheap O(n) tamper check run once at startup against the (still-XORed)
+		// bytecode blob, before it's deserialized/executed. Catches naive
+		// byte-patching of the embedded ByteString literal (e.g. flipping a
+		// security check inside the obfuscated bytecode) - without this, a
+		// corrupted blob either crashes deep inside the VM with a confusing
+		// error or, worse, silently runs the patched logic.
+		public static string IntegrityCheck = @"
+do
+	local Sum = 0;
+	for Idx = 1, #ByteString do
+		Sum = (Sum * 31 + Byte(ByteString, Idx, Idx)) % 1000000007;
+	end;
+	if Sum ~= CHECKSUM_VALUE then
+		error('bad bytecode');
+	end;
+end;
+";
 
 		public static string VMP1 = @"
 	local BitXOR = bit and bit.bxor or function(a,b)
@@ -199,22 +216,25 @@ _ibHmacVerify(ByteString, ""HMAC_CHECKSUM"")
 		end;
 	end;
 
+	local XorKey = XOR_KEY_TABLE;
+	local XorKeyLen = XOR_KEY_LEN;
+
 	local Pos = 1;
 
 	local function gBits32()
 	    local W, X, Y, Z = Byte(ByteString, Pos, Pos + 3);
 
-		W = BitXOR(W, XOR_KEY)
-		X = BitXOR(X, XOR_KEY)
-		Y = BitXOR(Y, XOR_KEY)
-		Z = BitXOR(Z, XOR_KEY)
+		W = BitXOR(W, XorKey[(Pos - 1) % XorKeyLen + 1])
+		X = BitXOR(X, XorKey[Pos % XorKeyLen + 1])
+		Y = BitXOR(Y, XorKey[(Pos + 1) % XorKeyLen + 1])
+		Z = BitXOR(Z, XorKey[(Pos + 2) % XorKeyLen + 1])
 
 	    Pos	= Pos + 4;
 	    return (Z*16777216) + (Y*65536) + (X*256) + W;
 	end;
 
 	local function gBits8()
-	    local F = BitXOR(Byte(ByteString, Pos, Pos), XOR_KEY);
+	    local F = BitXOR(Byte(ByteString, Pos, Pos), XorKey[(Pos - 1) % XorKeyLen + 1]);
 	    Pos = Pos + 1;
 	    return F;
 	end;
@@ -222,8 +242,8 @@ _ibHmacVerify(ByteString, ""HMAC_CHECKSUM"")
 	local function gBits16()
 	    local W, X = Byte(ByteString, Pos, Pos + 2);
 
-		W = BitXOR(W, XOR_KEY)
-		X = BitXOR(X, XOR_KEY)
+		W = BitXOR(W, XorKey[(Pos - 1) % XorKeyLen + 1])
+		X = BitXOR(X, XorKey[Pos % XorKeyLen + 1])
 
 	    Pos	= Pos + 2;
 	    return (X*256) + W;
@@ -269,12 +289,13 @@ _ibHmacVerify(ByteString, ""HMAC_CHECKSUM"")
 	        end;
 	    end;
 
+	    local P0 = Pos;
 	    Str	= Sub(ByteString, Pos, Pos + Len - 1);
 	    Pos = Pos + Len;
 
 		local FStr = {}
 		for Idx = 1, #Str do
-			FStr[Idx] = Char(BitXOR(Byte(Sub(Str, Idx, Idx)), XOR_KEY))
+			FStr[Idx] = Char(BitXOR(Byte(Sub(Str, Idx, Idx)), XorKey[(P0 + Idx - 2) % XorKeyLen + 1]))
 		end
 
 	    return Concat(FStr);
@@ -414,8 +435,8 @@ return Wrap(Deserialize(), {}, GetFEnv())();
 
 		A, B = _R(PCall(Loop))
 		if not A[1] then
-			local line = Chunk[7][InstrPoint] or '?'
-			error('ERROR IN IRONBREW SCRIPT [LINE ' .. line .. ']:' .. A[2])
+			local line = Chunk[4][InstrPoint] or '?'
+			error('runtime error (line ' .. line .. '): ' .. A[2])
 		else
 			return Unpack(A, 2, B)
 		end;

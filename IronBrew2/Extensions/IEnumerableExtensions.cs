@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using IronBrew2.Utilities;
 
 namespace IronBrew2.Extensions
 {
 	public static class IEnumerableExtensions
 	{
-		private static Random _rnd = new Random();
+		private static Random _rnd = SharedRandom.Instance;
 		
 		public static void Shuffle<T>(this IList<T> list)
 		{
