@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using IronBrew2.Cryptography;
+using IronBrew2.Obfuscator.Macros;
 using IronBrew2.Utilities;
 
 namespace IronBrew2.Obfuscator.Encryption
@@ -71,6 +72,7 @@ namespace IronBrew2.Obfuscator.Encryption
 	{
 		private string _src;
 		private ObfuscationSettings _settings;
+		private Random _r = SharedRandom.Instance;
 		private Encoding LuaBytecodeEncoding => EncodingConstants.LuaBytecodeEncoding;
 
 		public static byte[] UnescapeLuaString(string str)
@@ -160,6 +162,7 @@ namespace IronBrew2.Obfuscator.Encryption
 				var   matches = r.Matches(_src);
 
 				const string decryptFunc = "IRONBREW_STR_DECRYPT";
+				int sharedDecryptCount = 0;
 
 				foreach (Match m in matches)
 				{
@@ -173,22 +176,44 @@ namespace IronBrew2.Obfuscator.Encryption
 
 					byte[] bytes = m.Groups[2].Value != "" ? UnescapeLuaString(captured) : LuaBytecodeEncoding.GetBytes(captured);
 
-					// Each string gets its own random key, instead of every string in
-					// the program being XORed against the same repeating table - that
-					// shared-key scheme let an attacker crib-drag/frequency-analyze the
-					// whole program at once. The (small) shared decrypt helper below is
-					// emitted once regardless of how many strings are encrypted.
-					int keyLen = Math.Max(1, Math.Min(bytes.Length, _settings.DecryptTableLen));
-					Decryptor dec = new Decryptor(decryptFunc, keyLen);
+					// Use different encryption strategies based on string characteristics
+					// - Short strings (< 10 bytes): use NOT (self-inverse, small output)
+					// - Medium strings: use additive or XOR with random strategies
+					// - Long strings: use shared XOR helper (current approach)
+					// - Random selection: ~20% chance of using alternate strategy
+					string nStr;
 
-					string nStr = before + dec.EncryptCall(bytes, decryptFunc);
+					if (bytes.Length < 5)
+					{
+						// Very short strings: use NOT (compact)
+						nStr = before + StrEncrypt.EncryptNot(bytes, out _);
+					}
+					else if (bytes.Length < 10 || _r.Next(5) == 0)
+					{
+						// Short strings or random ~20%: use random strategy
+						nStr = before + StrEncrypt.EncryptWithRandomStrategy(bytes);
+					}
+					else
+					{
+						// Each string gets its own random key, instead of every string in
+						// the program being XORed against the same repeating table - that
+						// shared-key scheme let an attacker crib-drag/frequency-analyze the
+						// whole program at once. The (small) shared decrypt helper below is
+						// emitted once regardless of how many strings are encrypted.
+						int keyLen = Math.Max(1, Math.Min(bytes.Length, _settings.DecryptTableLen));
+						Decryptor dec = new Decryptor(decryptFunc, keyLen);
+
+						nStr = before + dec.EncryptCall(bytes, decryptFunc);
+						sharedDecryptCount++;
+					}
+
 					nStr += after;
 
 					indDiff += nStr.Length - _src.Length;
 					_src    =  nStr;
 				}
 
-				if (matches.Count > 0)
+				if (sharedDecryptCount > 0)
 					_src = Decryptor.GenerateDecryptHelper(decryptFunc) + _src;
 			}
 

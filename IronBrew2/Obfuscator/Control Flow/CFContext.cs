@@ -2,18 +2,20 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection.Emit;
 using IronBrew2.Bytecode_Library.Bytecode;
 using IronBrew2.Bytecode_Library.IR;
 using IronBrew2.Obfuscator.Control_Flow.Types;
+using IronBrew2.Obfuscator.Macros;
+using IronBrew2.Utilities;
 
 namespace IronBrew2.Obfuscator.Control_Flow
 {
 	public class CFContext
 	{
 		public Chunk lChunk;
+		private Random _r = SharedRandom.Instance;
 
-		public void DoChunk(Chunk c)
+		public void DoChunk(Chunk c, bool enableAllPasses = false)
 		{
 			bool chunkHasCflow = false;
 			
@@ -46,36 +48,30 @@ namespace IronBrew2.Obfuscator.Control_Flow
 							int cEnd = c.InstructionMap[instr];
 							
 							List<Instruction> nIns = c.Instructions.Skip(cBegin).Take(cEnd - cBegin).ToList();
-							
-							cBegin = c.InstructionMap[CBegin];
-							cEnd = c.InstructionMap[instr];
-							nIns = c.Instructions.Skip(cBegin).Take(cEnd - cBegin).ToList();
 
-							Console.WriteLine("Test Spam");
+							Console.WriteLine("  Test Spam");
 							TestSpam.DoInstructions(c, nIns);
 							
 							cBegin = c.InstructionMap[CBegin];
 							cEnd = c.InstructionMap[instr];
 							nIns = c.Instructions.Skip(cBegin).Take(cEnd - cBegin).ToList();
-							
-							//BranchIntegrity.DoInstructions(c, nIns);
 
-							//cBegin = c.InstructionMap[CBegin];
-							//cEnd = c.InstructionMap[instr];
-							//nIns = c.Instructions.Skip(cBegin).TakLOe(cEnd - cBegin).ToList();
-
-							Console.WriteLine("Bounce");
+							Console.WriteLine("  Bounce");
 							Bounce.DoInstructions(c, nIns);
 
 							cBegin = c.InstructionMap[CBegin];
 							cEnd = c.InstructionMap[instr];
 							nIns = c.Instructions.Skip(cBegin).Take(cEnd - cBegin).ToList();
-							
-							//Console.WriteLine("Test Preserve");
-							//TestPreserve.DoInstructions(c, nIns);
-							
-							//Console.WriteLine("EQ Mutate");
-							//EQMutate.DoInstructions(c, c.Instructions.ToList());
+
+							if (enableAllPasses)
+							{
+								Console.WriteLine("  Test Preserve");
+								TestPreserve.DoInstructions(c, nIns);
+
+								cBegin = c.InstructionMap[CBegin];
+								cEnd = c.InstructionMap[instr];
+								nIns = c.Instructions.Skip(cBegin).Take(cEnd - cBegin).ToList();
+							}
 							
 							break;
 						}	
@@ -94,6 +90,18 @@ namespace IronBrew2.Obfuscator.Control_Flow
 					}
 				}
 			}
+
+			if (enableAllPasses)
+			{
+				Console.WriteLine("  Eq Mutate");
+				EQMutate.DoInstructions(c, c.Instructions.ToList());
+
+				Console.WriteLine("  Opaque Predicates");
+				OpaquePredicate.DoInstructions(c, c.Instructions.ToList());
+
+				Console.WriteLine("  Block Splitting");
+				BlockSplit.DoInstructions(c, c.Instructions.ToList());
+			}
 			
 			TestFlip.DoInstructions(c, c.Instructions.ToList());
 			
@@ -101,14 +109,21 @@ namespace IronBrew2.Obfuscator.Control_Flow
 				c.Instructions.Insert(0, new Instruction(c, Opcode.NewStack));
 			
 			foreach (Chunk _c in c.Functions)
-				DoChunk(_c);
+				DoChunk(_c, enableAllPasses);
 		}
 
 		public void DoChunks()
 		{
 			new Inlining(lChunk).DoChunks();
-			DoChunk(lChunk);
-			//File.WriteAllBytes("ok.luac", new VanillaSerializer(lChunk).Serialize());
+			DoChunk(lChunk, true);
+
+			// Process SetFenv markers
+			Console.WriteLine("  SetFenv");
+			SetFenv.ProcessMarkers(lChunk);
+
+			// Process crash triggers
+			Console.WriteLine("  Crash Triggers");
+			Crash.InjectCrashTriggers(lChunk);
 		}
 
 		public CFContext(Chunk lChunk_) =>

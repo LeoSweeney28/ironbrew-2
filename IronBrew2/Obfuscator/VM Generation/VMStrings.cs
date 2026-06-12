@@ -168,25 +168,46 @@ local ByteString = _ibDecrypt(ENCRYPTED_BLOB, ""AES_KEY_HEX"", ""AES_IV_HEX"")
 _ibHmacVerify(ByteString, ""HMAC_CHECKSUM"")
 ";
 
-		// Cheap O(n) tamper check run once at startup against the (still-XORed)
-		// bytecode blob, before it's deserialized/executed. Catches naive
-		// byte-patching of the embedded ByteString literal (e.g. flipping a
-		// security check inside the obfuscated bytecode) - without this, a
-		// corrupted blob either crashes deep inside the VM with a confusing
-		// error or, worse, silently runs the patched logic.
+		// Multi-round integrity check: runs two different hash functions over the
+		// XORed bytecode blob at startup to catch byte-patching. Uses different
+		// modulus values so both must match.
 		public static string IntegrityCheck = @"
 do
-	local Sum = 0;
+	local Sum1 = 0;
+	local Sum2 = 1;
 	for Idx = 1, #ByteString do
-		Sum = (Sum * 31 + Byte(ByteString, Idx, Idx)) % 1000000007;
+		local B = Byte(ByteString, Idx, Idx);
+		Sum1 = (Sum1 * 31 + B) % 1000000007;
+		Sum2 = (Sum2 * B + Idx) % 1000000009;
 	end;
-	if Sum ~= CHECKSUM_VALUE then
+	if Sum1 ~= CHECKSUM_VALUE1 or Sum2 ~= CHECKSUM_VALUE2 then
 		error('bad bytecode');
 	end;
 end;
 ";
 
 		public static string VMP1 = @"
+	-- Anti-debug: verify critical functions haven't been hooked
+	do
+		local function _v(f,name)
+			local t = type(f);
+			if t ~= 'function' then error(name .. ' is ' .. t .. ', expected function') end
+		end
+		_v(string.byte, 'string.byte');
+		_v(string.char, 'string.char');
+		_v(string.sub, 'string.sub');
+		_v(table.concat, 'table.concat');
+		_v(tonumber, 'tonumber');
+	end;
+	-- Anti-debug: disable debug.sethook if available
+	do
+		local ok, dh = pcall(debug and debug.sethook or error, nil);
+		if ok then
+			pcall(debug.sethook, nil);
+			pcall(debug.setfenv, 1, {});
+		end
+	end;
+
 	local BitXOR = bit and bit.bxor or function(a,b)
 	    local p,c=1,0
 	    while a>0 and b>0 do
@@ -216,7 +237,7 @@ end;
 		end;
 	end;
 
-	local XorKey = XOR_KEY_TABLE;
+	local XorKey = XOR_KEY_TABLE
 	local XorKeyLen = XOR_KEY_LEN;
 
 	local Pos = 1;
@@ -346,6 +367,12 @@ end;
 			local InstrPoint = 1;
 			local Top = -1;
 
+			-- Runtime env hardening: verify key functions periodically
+			local _Byte = Byte;
+			local _Char = Char;
+			local _Sub  = Sub;
+			local _Concat = Concat;
+
 			local Vararg = {};
 			local Args	= {...};
 
@@ -368,6 +395,9 @@ end;
 			local Enum;
 			local A, B, C;
 
+			-- Scattered integrity check counter
+			local _IC = 0;
+
 			while true do
 				Inst		= Instr[InstrPoint];
 				Enum		= Inst[OP_ENUM];
@@ -376,9 +406,18 @@ end;
 
 		public static string VMP3 = @"
 			InstrPoint	= InstrPoint + 1;
+			-- Periodic integrity check (every 1000 instructions)
+			_IC = _IC + 1;
+			if _IC >= 1000 then
+				_IC = 0;
+				if type(_Byte) ~= 'function' or type(_Char) ~= 'function' then
+					error('env corrupted');
+				end;
+			end;
 		end;
     end;
 end;
+DEADCODE_INJECTION
 return Wrap(Deserialize(), {}, GetFEnv())();
 ";
 
@@ -422,6 +461,9 @@ return Wrap(Deserialize(), {}, GetFEnv())();
 				local Enum;
 				local A, B, C;
 
+				-- Scattered integrity check counter
+				local _IC = 0;
+
 				while true do
 					Inst		= Instr[InstrPoint];
 					Enum		= Inst[OP_ENUM];
@@ -430,6 +472,13 @@ return Wrap(Deserialize(), {}, GetFEnv())();
 
 		public static string VMP3_LI = @"
 				InstrPoint	= InstrPoint + 1;
+				_IC = _IC + 1;
+				if _IC >= 1000 then
+					_IC = 0;
+					if type(_Byte) ~= 'function' or type(_Char) ~= 'function' then
+						error('env corrupted');
+					end;
+				end;
 			end;
 		end;
 
@@ -442,6 +491,7 @@ return Wrap(Deserialize(), {}, GetFEnv())();
 		end;
 	end;
 end;
+DEADCODE_INJECTION
 return Wrap(Deserialize(), {}, GetFEnv())();
 ";
 	}

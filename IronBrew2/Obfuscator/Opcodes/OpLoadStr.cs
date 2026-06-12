@@ -3,15 +3,15 @@ using IronBrew2.Bytecode_Library.IR;
 
 namespace IronBrew2.Obfuscator.Opcodes
 {
-    //public class OpLoadStr : VOpcode
-    //{
-        //public override bool IsInstruction(Instruction instruction) =>
-        //    instruction.OpCode == Opcode.LoadConst && instruction.Chunk.Constants[instruction.B].Type == ConstantType.String;
-//
-        //public override string GetObfuscated(ObfuscationContext context) =>
-        //    "Stk[_REG_A]=Strt[_REG_B];";
-//
-        //public override void Mutate(Instruction instruction) =>
-        //    instruction.B++;
-   //}
+    public class OpLoadStr : VOpcode
+    {
+        public override bool IsInstruction(Instruction instruction) =>
+            instruction.OpCode == Opcode.LoadConst && instruction.Chunk.Constants[instruction.B].Type == ConstantType.String;
+
+        public override string GetObfuscated(ObfuscationContext context) =>
+            "Stk[_REG_A]=Strt[_REG_B];";
+
+        public override void Mutate(Instruction instruction) =>
+            instruction.B++;
+    }
 }

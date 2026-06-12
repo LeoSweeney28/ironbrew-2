@@ -10,6 +10,7 @@ using IronBrew2.Obfuscator;
 using IronBrew2.Obfuscator.Control_Flow;
 using IronBrew2.Obfuscator.Control_Flow.Types;
 using IronBrew2.Obfuscator.Encryption;
+using IronBrew2.Obfuscator.Macros;
 using IronBrew2.Obfuscator.VM_Generation;
 using IronBrew2.Utilities;
 using IronBrew2.Validation;

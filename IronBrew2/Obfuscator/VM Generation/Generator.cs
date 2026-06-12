@@ -221,7 +221,7 @@ namespace IronBrew2.Obfuscator.VM_Generation
 				int targetCount = maxSize;
 				OpSuperOperator superOperator = new OpSuperOperator {SubOpcodes = new VOpcode[targetCount]};
 
-				bool d     = true;
+				bool d = true;
 				int cutoff = targetCount;
 
 				for (int j = 0; j < targetCount; j++)
@@ -313,10 +313,13 @@ namespace IronBrew2.Obfuscator.VM_Generation
 				foreach (OpSuperOperator op in operators)
 				{
 					int targetCount = op.SubOpcodes.Length;
+					if (c + targetCount > chunk.Instructions.Count)
+						continue;
+
 					bool cu = true;
 					for (int j = 0; j < targetCount; j++)
 					{
-						if (c + j > chunk.Instructions.Count - 1 || skip[c + j])
+						if (skip[c + j])
 						{
 							cu = false;
 							break;
@@ -325,7 +328,6 @@ namespace IronBrew2.Obfuscator.VM_Generation
 
 					if (!cu)
 						continue;
-
 
 					List<Instruction> taken = chunk.Instructions.Skip(c).Take(targetCount).ToList();
 					if (op.IsInstruction(taken))
@@ -346,7 +348,10 @@ namespace IronBrew2.Obfuscator.VM_Generation
 				if (!used)
 					c++;
 				else
+				{
 					folded++;
+					c += operators.First(o => o == chunk.Instructions[c].CustomData.WrittenOpcode).SubOpcodes.Length;
+				}
 			}
 
 			foreach (var _c in chunk.Functions)
@@ -406,8 +411,21 @@ namespace IronBrew2.Obfuscator.VM_Generation
 			
 			virtuals.Shuffle();
 			
-			for (int i = 0; i < virtuals.Count; i++)
-				virtuals[i].VIndex = i;
+			// Randomize VIndex values to break sequential opcode numbering.
+			// Instead of 0..N-1, assign random unique indices. This makes the
+			// dispatch tree harder to analyze since opcode values don't correlate
+			// to position in the dispatch tree.
+			if (r.Next(2) == 0)
+			{
+				var indices = Enumerable.Range(0, virtuals.Count * 2).OrderBy(_ => r.Next()).Take(virtuals.Count).ToList();
+				for (int i = 0; i < virtuals.Count; i++)
+					virtuals[i].VIndex = indices[i];
+			}
+			else
+			{
+				for (int i = 0; i < virtuals.Count; i++)
+					virtuals[i].VIndex = i;
+			}
 
 			string vm = "";
 
@@ -487,11 +505,19 @@ local ToNumber = tonumber;";
 			// the time ByteString is assigned above it equals `bs` exactly in all
 			// three branches (compression and AES decryption are both lossless),
 			// so the same hash can be computed at build time over `bs` here.
-			ulong bytecodeChecksum = 0;
+			ulong bytecodeChecksum1 = 0;
+			ulong bytecodeChecksum2 = 1;
+			int _idx = 0;
 			foreach (byte b in bs)
-				bytecodeChecksum = (bytecodeChecksum * 31 + b) % 1000000007UL;
+			{
+				_idx++;
+				bytecodeChecksum1 = (bytecodeChecksum1 * 31 + b) % 1000000007UL;
+				bytecodeChecksum2 = (bytecodeChecksum2 * b + (ulong)_idx) % 1000000009UL;
+			}
 
-			vm += VMStrings.IntegrityCheck.Replace("CHECKSUM_VALUE", bytecodeChecksum.ToString());
+			vm += VMStrings.IntegrityCheck
+				.Replace("CHECKSUM_VALUE1", bytecodeChecksum1.ToString())
+				.Replace("CHECKSUM_VALUE2", bytecodeChecksum2.ToString());
 
 			int maxConstants = 0;
 
@@ -507,7 +533,7 @@ local ToNumber = tonumber;";
 			ComputeConstants(_context.HeadChunk);
 
 			vm += VMStrings.VMP1
-				.Replace("XOR_KEY_TABLE", "{" + string.Join(",", _context.XorKey) + "}")
+				.Replace("XOR_KEY_TABLE", "{" + string.Join(",", _context.XorKey) + "};")
 				.Replace("XOR_KEY_LEN", _context.XorKey.Length.ToString())
 				.Replace("CONST_BOOL", _context.ConstantMapping[1].ToString())
 				.Replace("CONST_FLOAT", _context.ConstantMapping[2].ToString())
@@ -594,51 +620,118 @@ local ToNumber = tonumber;";
 			}
 			
 			ComputeInstrs(_context.HeadChunk);
+
+			// Add junk virtual opcodes to the dispatch to confuse static analysis
+			int junkOpCount = r.Next(3, 8);
+			for (int j = 0; j < junkOpCount; j++)
+			{
+				var junkOp = new Opcodes.OpJunk();
+				junkOp.VIndex = virtuals.Count;
+				virtuals.Add(junkOp);
+			}
+
+			// Dispatch polymorphism - randomly select a dispatch strategy
+			int dispatchMode = r.Next(0, 4);
 			
 			string GetStr(List<int> opcodes)
 			{
+				// Always work with a VIndex-sorted copy to ensure correct partitioning
+				var sorted = opcodes.OrderBy(o => virtuals[o].VIndex).ToList();
+				return GetStrSorted(sorted);
+			}
+
+			string GetStrSorted(List<int> sorted)
+			{
 				string str = "";
 
-				if (opcodes.Count == 1)
-					str += $"{virtuals[opcodes[0]].GetObfuscated(_context)}";
+				if (sorted.Count == 1)
+					str += $"{virtuals[sorted[0]].GetObfuscated(_context)}";
 
-				else if (opcodes.Count == 2)
+				else if (sorted.Count == 2)
 				{
 					if (r.Next(2) == 0)
 					{
-						str +=
-							$"if Enum > {virtuals[opcodes[0]].VIndex} then {virtuals[opcodes[1]].GetObfuscated(_context)}";
-						str += $"else {virtuals[opcodes[0]].GetObfuscated(_context)}";
+						str += $"if Enum > {virtuals[sorted[0]].VIndex} then {virtuals[sorted[1]].GetObfuscated(_context)}";
+						str += $"else {virtuals[sorted[0]].GetObfuscated(_context)}";
 						str += "end;";
 					}
 					else
 					{
-						str +=
-							$"if Enum == {virtuals[opcodes[0]].VIndex} then {virtuals[opcodes[0]].GetObfuscated(_context)}";
-						str += $"else {virtuals[opcodes[1]].GetObfuscated(_context)}";
+						str += $"if Enum == {virtuals[sorted[0]].VIndex} then {virtuals[sorted[0]].GetObfuscated(_context)}";
+						str += $"else {virtuals[sorted[1]].GetObfuscated(_context)}";
 						str += "end;";
 					}
 				}
 				else
 				{
-					List<int> ordered = opcodes.OrderBy(o => o).ToList();
-					var sorted = new[] { ordered.Take((ordered.Count + 1) / 2).ToList(), ordered.Skip((ordered.Count + 1) / 2).ToList() };
+					var split = new[] { sorted.Take((sorted.Count + 1) / 2).ToList(), sorted.Skip((sorted.Count + 1) / 2).ToList() };
 
-					str += "if Enum <= " + sorted[0].Last() + " then ";
-					str += GetStr(sorted[0]);
-					// Note the trailing space: GetStr(sorted[1]) begins with "if Enum ...",
-					// and "else" immediately followed by "if" with no separating space
-					// lexes as the single `elseif` keyword instead of a nested
-					// if/end block, throwing off the end-count for the whole tree.
+					int pivotIdx = split[0].Last();
+					int pivotVIndex = virtuals[pivotIdx].VIndex;
+
+					str += "if Enum <= " + pivotVIndex + " then ";
+					str += GetStrSorted(split[0]);
 					str += " else ";
-					str += GetStr(sorted[1]);
+					str += GetStrSorted(split[1]);
 					str += " end";
 				}
 
 				return str;
 			}
 
-			vm += GetStr(Enumerable.Range(0, virtuals.Count).ToList());
+			string GetSequentialDispatch(List<int> opcodes)
+			{
+				string str = "";
+				for (int i = 0; i < opcodes.Count; i++)
+				{
+					if (i == 0)
+						str += $"if Enum == {virtuals[opcodes[i]].VIndex} then {virtuals[opcodes[i]].GetObfuscated(_context)}";
+					else if (i == opcodes.Count - 1)
+						str += $"else {virtuals[opcodes[i]].GetObfuscated(_context)}";
+					else
+						str += $"elseif Enum == {virtuals[opcodes[i]].VIndex} then {virtuals[opcodes[i]].GetObfuscated(_context)}";
+				}
+				str += "end;";
+				return str;
+			}
+
+			string GetComputedGotoDispatch(List<int> opcodes)
+			{
+				// Sequential elseif dispatch (goto/label not compatible with LuaSrcDiet)
+				return GetSequentialDispatch(opcodes);
+			}
+
+			switch (dispatchMode)
+			{
+				case 0:
+					vm += GetStr(Enumerable.Range(0, virtuals.Count).ToList());
+					break;
+				case 1:
+					// Sequential elseif chain
+					vm += GetSequentialDispatch(Enumerable.Range(0, virtuals.Count).OrderBy(_ => r.Next()).ToList());
+					break;
+				case 2:
+					// Computed goto dispatch (LuaJIT-compatible ::label:: and goto)
+					vm += GetComputedGotoDispatch(Enumerable.Range(0, virtuals.Count).ToList());
+					break;
+			case 3:
+				// Inverted binary tree (reverse comparison direction)
+				// Sort by VIndex to find the true midpoint
+				{
+					var allSorted = Enumerable.Range(0, virtuals.Count)
+						.OrderBy(o => virtuals[o].VIndex).ToList();
+					var hi = allSorted.Skip(allSorted.Count / 2).Reverse().ToList();
+					var lo = allSorted.Take(allSorted.Count / 2).Reverse().ToList();
+					int pivotIdx = lo.Last();
+					int pivotVIndex = virtuals[pivotIdx].VIndex;
+					vm += "if Enum >= " + pivotVIndex + " then ";
+					vm += GetStr(hi);
+					vm += " else ";
+					vm += GetStr(lo);
+					vm += " end";
+				}
+				break;
+			}
 			vm += settings.PreserveLineInfo ? VMStrings.VMP3_LI : VMStrings.VMP3;
 
 			vm = vm.Replace("OP_ENUM", "1")
@@ -649,7 +742,57 @@ local ToNumber = tonumber;";
 				.Replace("_REG_B", "B")
 				.Replace("_REG_C", "C");
 
-			
+			// Variable name polymorphism - rename key VM locals with random names
+			// to prevent fingerprinting across obfuscation runs
+			if (r.Next(2) == 0)
+			{
+				var varMappings = new Dictionary<string, string>
+				{
+					{ "ByteString", "_b" + r.Next(1000, 9999) },
+					{ "XorKey", "_k" + r.Next(1000, 9999) },
+					{ "XorKeyLen", "_l" + r.Next(1000, 9999) },
+					{ "InstrPoint", "_p" + r.Next(1000, 9999) },
+					{ "Instrs", "_i" + r.Next(1000, 9999) },
+					{ "Functions", "_f" + r.Next(1000, 9999) },
+					{ "Consts", "_c" + r.Next(1000, 9999) },
+					{ "Stk", "_s" + r.Next(1000, 9999) },
+					{ "Inst", "_n" + r.Next(1000, 9999) },
+					{ "Enum", "_e" + r.Next(1000, 9999) },
+					{ "Top", "_t" + r.Next(1000, 9999) },
+					{ "Vararg", "_v" + r.Next(1000, 9999) },
+					{ "Args", "_a" + r.Next(1000, 9999) },
+					{ "Lupvals", "_u" + r.Next(1000, 9999) },
+				};
+
+				foreach (var kv in varMappings)
+					vm = System.Text.RegularExpressions.Regex.Replace(vm,
+						@"\b" + kv.Key + @"\b", kv.Value);
+			}
+
+			// Build dead code payload to inject before the return statement
+			string deadCodePayload = "";
+
+			// VM template mutation: inject dead function definitions that are
+			// never called.
+			if (r.Next(3) == 0)
+			{
+				int deadFuncCount = r.Next(1, 4);
+				for (int df = 0; df < deadFuncCount; df++)
+				{
+					int deadVar = r.Next(100, 999);
+					int deadVal = r.Next(1, 10000);
+					deadCodePayload += $"do local _d{deadVar}=function()local _a;for _i=1,{deadVal} do _a=_a+_i end;return _a end end;";
+				}
+			}
+
+			// Self-modification detection
+			if (r.Next(2) == 0)
+			{
+				deadCodePayload += "do local _db = debug; if _db then pcall(function() _db.sethook(nil) end) end end;";
+			}
+
+			vm = vm.Replace("DEADCODE_INJECTION", deadCodePayload);
+
 			return vm;
 		}
 	}
